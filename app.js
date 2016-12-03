@@ -37,9 +37,12 @@ function getSessionInfo() {
     }
 
     return prompt(promptQuestions).then(answers => {
-        sshKey = fs.readFileSync(process.env.HOME + answers.ssh_key_location)
-        client = new DigitalOceanApi({token: answers.do_api_token});
-        console.log(answers.do_api_token + answers.ssh_key_location)
+        sessionInfo.do_api_token = answers.do_api_token
+        sessionInfo.ssh_key_location = answers.ssh_key_location
+        sshKey = fs.readFileSync(process.env.HOME + "/.ssh/" +
+          sessionInfo.ssh_key_location)
+        client = new DigitalOceanApi({token: sessionInfo.do_api_token});
+        console.log(sessionInfo)
         return sessionInfo;
     }).catch(error => console.log(error))
 }
@@ -54,7 +57,8 @@ function getCurrentServer(sessionInfo) {
         });
     }).then(droplet => {
         sessionInfo.old_server = droplet[0];
-        console.log('The current server is: ' + sessionInfo.old_server.name + " " + sessionInfo.old_server.networks.v4[0].ip_address)
+        console.log('The current server is: ' + sessionInfo.old_server.name +
+          " " + sessionInfo.old_server.networks.v4[0].ip_address)
         return sessionInfo
     }).catch(error => console.error(error))
 }
@@ -62,7 +66,8 @@ function getCurrentServer(sessionInfo) {
 //using the return from getCurrentServer, start a new droplet using the snapshot of the old server.
 function startNewServer(sessionInfo) {
     var newServerDetails = {
-        "name": "streisand-" + (time.getMonth() + 1) + "-" + time.getDate() + "-" + time.getHours() + "." + time.getMinutes(),
+        "name": "streisand-" + (time.getMonth() + 1) + "-" + time.getDate() +
+          "-" + time.getHours() + "." + time.getMinutes(),
         "region": "sfo2",
         //"region": oldServer.oldserver.region.slug,
         "size": "512mb",
@@ -77,23 +82,27 @@ function startNewServer(sessionInfo) {
         function getIP() {
 
             return client.dropletGet(newServerDetails.id).then(startingDroplet => {
-                numAttempts++ console.log("Find IP attempt # ", numAttempts);
+                numAttempts++
+                console.log("Find IP attempt # ", numAttempts);
 
                 if (startingDroplet.networks.v4[0].ip_address != undefined) {
                     newServerDetails = startingDroplet;
-                    console.log("newServer updated with IPv4 address: ", startingDroplet.networks.v4[0].ip_address);
+                    console.log("newServer updated with IPv4 address: ",
+                      startingDroplet.networks.v4[0].ip_address);
                     return newServerDetails;
 
                 } else {
                     if (numAttempts > 15) {
-                        console.log("failed to reach server after " + numAttempts + " attempts");
+                        console.log("failed to reach server after " + numAttempts
+                          + " attempts");
                     } else {
                         return getIP();
                     }
                 }
             }).then(server => {
                 sessionInfo.new_server = server
-                console.log(sessionInfo.new_server.name + " " + sessionInfo.new_server.networks.v4[0].ip_address)
+                console.log(sessionInfo.new_server.name + " " +
+                  sessionInfo.new_server.networks.v4[0].ip_address)
                 return sessionInfo
             })
         }
@@ -163,5 +172,95 @@ function destroyOldServer(dropletID) {
     return console.log(destroyedDroplet);
   });
 };
+
+//service restart
+function serviceRestart(service) {
+  sequestOpts.command = 'service ' + service + ' restart';
+  sshCommand(newServer.networks.v4[0].ip_address, sequestOpts);
+};
+
+//update domain to reflect new IP.
+function updateDomainRecords(domain) {
+
+ client.domainRecordGetAll(domain).then(function(domainRecords) {
+   newRecord = {
+     "type": "A",
+     "data": newServer.networks.v4[0].ip_address,
+     "name": "@"
+   }
+   targetRecord = domainRecords.filter(function(el) {
+     return domainRecords;
+   });
+   if (targetRecord != null){
+     targetRecord = targetRecord.filter(function(el) {
+       return el.type === "A";
+     });
+     if (targetRecord[0].data === oldServer[0].networks.v4[0].ip_address) {
+       console.log("the targetRecord and current server record match, updating record.");
+     } else {
+       throw "DNS Records do not match, skipping DNS record update."
+     }
+     client.domainRecordEdit(domain,targetRecord[0].id,newRecord).then(function (updatedRecord){
+       console.log("The new record is : \n", updatedRecord);
+     })
+   } else {
+     throw "The record details could not be found, skipping DNS record update"
+   }
+ });
+}
+// Verify domain record has been successfully updated against DO DNS servers
+
+//helper function to push stream into a string variable
+ function streamToString (stream, result, resultKey, callback) {
+   var data = '';
+   var chunk;
+
+   stream.on('readable', function() {
+       while ((chunk=this.read()) != null) {
+           data += chunk;
+           console.log("Reading data . . .");
+       }
+   });
+
+   stream.on('end', function() {
+     data = JSON.parse(data);
+     console.log("reading complete");
+     result[resultKey] = data;
+     callback();
+   });
+ };
+
+ //genereic sequest callback
+ function sequestResponse (error, stdout) {
+    if (error) {
+      throw error;
+    } else {
+      console.log(stdout);
+      return true;
+    }
+  };
+
+  function sshCommand (server, options) {
+    sequest('root@' + server, sequestOpts, sequestResponse);
+  };
+
+
+  function isActive(server, delay, timeout) {
+    client.dropletGet(server).catch(function (error){
+      if (error === 'Error: Request Failed: Error: read ECONNRESET') {
+        console.error('there was an error, trying again:', error);
+      } else {
+      console.error('there was an error, aborting:', error);
+    }
+    }).then(function statusIs(droplet){
+      if (droplet.status !='active') {
+        console.log(droplet.status);
+        console.log('not yet active');
+        isActive(server);
+      } else {
+        console.log('the server status is ' + droplet.status);
+      }
+    });
+  };
 
 */

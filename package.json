@@ -1,0 +1,28 @@
+{
+  "name": "juke",
+  "version": "0.0.1",
+  "description": "A Node.js script to reprovision a Streisand Instance to a new IP",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nickolasclarke/juke.git"
+  },
+  "keywords": [
+    "streisand"
+  ],
+  "author": "Nick Clarke",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/nickolasclarke/juke/issues"
+  },
+  "homepage": "https://github.com/nickolasclarke/juke#readme",
+  "dependencies": {
+    "doapi": "^0.1.2",
+    "inquirer": "^1.2.3",
+    "ping": "^0.2.1",
+    "sequest": "^0.9.0"
+  }
+}

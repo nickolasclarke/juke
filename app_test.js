@@ -52,7 +52,7 @@ function getCurrentServer(sessionInfo) {
     return client.dropletGetAll().then(droplets => {
         return droplets.filter(el => {
             if (el.name.search('streisand-') !== -1) {
-                return el.name; 
+                return el.name;
             }
         });
     }).then(droplet => {
@@ -130,26 +130,95 @@ function checkConnection(sessionInfo){
     }).then(results => {
       console.log('STDOUT: ' + results.stdout)
       console.log('STDERR: ' + results.stderr)
-      return console.log('successfully connected');
     }).catch(error => console.error(error))
   }
   connect(attempts)
 }
 
+getSessionInfo().then(getCurrentServer).then(startNewServer).then(checkConnection)
+
+//copy Shadowsocks config from old server onto new server
+function getShadowsocks() {
+  var oldConfigSSH = sequest.get('root@' + oldServer[0].networks.v4[0].ip_address,
+  '/etc/shadowsocks-libev/config.json', sequestOpts, sequestResponse);
+  configurations.shadowsocks = {};
+
+  function updateShadowsocks() {
+    console.log("updateShadowsocks callback started.");
+    configurations.shadowsocks.server = newServer.networks.v4[0].ip_address;
+    //this is a real hack that requires success, rework.
+    updateConfig(serviceRestart);
+  };
+
+  function updateConfig(callback) {
+    var configReadable = new readable;
+    var writer = sequest.put('root@' + newServer.networks.v4[0].ip_address,
+    '/etc/shadowsocks-libev/config.json', {
+      mode: '0640',
+      privateKey: sshKey,
+      readyTimeout: 20000
+    });
+
+    configReadable.push(JSON.stringify(configurations.shadowsocks, null, 2) + '\n');
+    configReadable.push(null);
+    configReadable.pipe(writer);
+    writer.on('close', function () {
+      console.log("finished writing");
+      callback('shadowsocks-libev');
+    })
+  };
+  streamToString(oldConfigSSH, configurations, 'shadowsocks', updateShadowsocks);
+};
 
 
-var test = ssh.connect({
-  host: '138.197.193.189',
-  username: 'root',
-  privateKey: process.env.USERPROFILE + '\\repos\\juke\\do'
-}).then( results => {
-  return ssh.execCommand('cat', ['/etc/shadowsocks-libev/config.json'])
-}).then(result => {
-  return console.log('STOUT' + result)
-}).catch(error => console.log(error))
+//copy Shadowsocks config from old server onto new server
+function getShadowsocks() {
+  ssh.connect({
+      //host: sessionInfo.new_server.networks.v4[0].ip_address,
+      host: '138.197.193.189',
+      username: 'root',
+      privateKey: 'C:/Users/nclarke/Desktop/do.priv'
+    }).then(() => {
+      return ssh.getFile('/etc/shadowsocks-libev/config.json', 'C:/Users/nclarke/Desktop/config.json').then(function(Contents) {
+        console.log("The File's contents were successfully downloaded")
+      }, error => {
+        console.log("Something's wrong")
+        console.log(error)
+      })
+    })
+}
 
-test 
-//getSessionInfo().then(getCurrentServer).then(startNewServer).then(checkConnection)
+  var oldConfigSSH = ssh.getFile('root@' + oldServer[0].networks.v4[0].ip_address,
+  '/etc/shadowsocks-libev/config.json', sequestOpts, sequestResponse);
+  configurations.shadowsocks = {};
+
+  function updateShadowsocks() {
+    console.log("updateShadowsocks callback started.");
+    configurations.shadowsocks.server = newServer.networks.v4[0].ip_address;
+    //this is a real hack that requires success, rework.
+    updateConfig(serviceRestart);
+  };
+
+  function updateConfig(callback) {
+    var configReadable = new readable;
+    var writer = sequest.put('root@' + newServer.networks.v4[0].ip_address,
+    '/etc/shadowsocks-libev/config.json', {
+      mode: '0640',
+      privateKey: sshKey,
+      readyTimeout: 20000
+    });
+
+    configReadable.push(JSON.stringify(configurations.shadowsocks, null, 2) + '\n');
+    configReadable.push(null);
+    configReadable.pipe(writer);
+    writer.on('close', function () {
+      console.log("finished writing");
+      callback('shadowsocks-libev');
+    })
+  };
+  streamToString(oldConfigSSH, configurations, 'shadowsocks', updateShadowsocks);
+};
+
 
 //CODE YET TO BE CONVERTED AND IMPLEMENTED
 /*
@@ -303,3 +372,10 @@ function updateDomainRecords(domain) {
   };
 
 */
+
+ssh.connect({
+      //host: sessionInfo.new_server.networks.v4[0].ip_address,
+      host: '138.197.193.189',
+      username: 'root',
+      privateKey: 'C:/Users/nclarke/Desktop/do.priv'
+    }).then(() => { return ssh.execCommand('ls /etc/shadowsocks-libev')}).then(results => console.log(results.stdhout + results.stderr))

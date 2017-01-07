@@ -1,15 +1,14 @@
 "use strict";
 var DigitalOceanApi = require('doapi');
+var ping = require('ping');
 var fs = require('fs');
-var node_ssh = require('node-ssh')
 var inquirer = require('inquirer');
+var sequest = require('sequest');
 
 var readable = require('stream').Readable
 
 var client;
 var sshKey;
-var ssh = new node_ssh()
-
 var configurations = {};
 var prompt = inquirer.createPromptModule();
 var promptQuestions = [
@@ -40,7 +39,8 @@ function getSessionInfo() {
     return prompt(promptQuestions).then(answers => {
         sessionInfo.do_api_token = answers.do_api_token
         sessionInfo.ssh_key_location = answers.ssh_key_location
-        sshKey = process.env.HOME + '/.ssh/' + sessionInfo.ssh_key_location
+        sshKey = fs.readFileSync(process.env.HOME + "/.ssh/" +
+          sessionInfo.ssh_key_location)
         client = new DigitalOceanApi({token: sessionInfo.do_api_token});
         console.log(sessionInfo)
         return sessionInfo;
@@ -52,7 +52,7 @@ function getCurrentServer(sessionInfo) {
     return client.dropletGetAll().then(droplets => {
         return droplets.filter(el => {
             if (el.name.search('streisand-') !== -1) {
-                return el.name; 
+                return el.name;
             }
         });
     }).then(droplet => {
@@ -110,46 +110,7 @@ function startNewServer(sessionInfo) {
     }).catch(error => console.log(error))
 }
 
-function checkConnection(sessionInfo){
-  var attempts = 25
-  console.log('Attempting to connect to server ' + sessionInfo.new_server.name + '. . . ');
-  console.log('Attempt: #1');
-  function connect(attempt) {
-    ssh.connect({
-      host: sessionInfo.new_server.networks.v4[0].ip_address,
-      username: 'root',
-      privateKey: sshKey
-    }).then( results => {
-      return ssh.execCommand('uptime')
-    }, rejection => {
-      attempts--
-      console.error('failed, ' + attempts +  ' attempts left . . .');
-      if (attempts > 0) {
-      connect(attempts);
-    }
-    }).then(results => {
-      console.log('STDOUT: ' + results.stdout)
-      console.log('STDERR: ' + results.stderr)
-      return console.log('successfully connected');
-    }).catch(error => console.error(error))
-  }
-  connect(attempts)
-}
-
-
-
-var test = ssh.connect({
-  host: '138.197.193.189',
-  username: 'root',
-  privateKey: process.env.USERPROFILE + '\\repos\\juke\\do'
-}).then( results => {
-  return ssh.execCommand('cat', ['/etc/shadowsocks-libev/config.json'])
-}).then(result => {
-  return console.log('STOUT' + result)
-}).catch(error => console.log(error))
-
-test 
-//getSessionInfo().then(getCurrentServer).then(startNewServer).then(checkConnection)
+getSessionInfo().then(getCurrentServer).then(startNewServer)
 
 //CODE YET TO BE CONVERTED AND IMPLEMENTED
 /*

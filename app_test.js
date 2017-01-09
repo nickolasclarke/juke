@@ -139,22 +139,25 @@ function checkConnection(sessionInfo){
 function getShadowsocks() {
   return ssh.connect({
       //host: sessionInfo.new_server.networks.v4[0].ip_address,
-      host: 'localhost',
+      host: '138.197.193.189',
       username: 'root',
       privateKey: process.env.HOME + '/.ssh/do.priv'
-    }).then(() => {
-      return ssh.getFile('~/config.json', '~/config.json.transfered')
-    }).then( contents => {
-      console.log( contents )
-      console.log("The File's contents were successfully downloaded")
-      sessionInfo.configurations.shadowsocks = {};
-      sessionInfo.configurations.shadowsocks.server = newServer.networks.v4[0].ip_address;
-      return sessionInfo;
-    }).then( () =>
-    return ssh.putfile('/path/to/local/file.json', '/path/to/remote/file.json')).catch(error =>
-    console.error('there is a problem', error))
+    }).then( () => {
+      return ssh.getFile('/etc/shadowsocks-libev/config.json', process.env.HOME + '/config.json.transfered')
+    }).then( () => {
+      return console.log("The File's contents were successfully downloaded")
+    }).then( () => {
+      fs.readFile('/etc/passwd', (error, data) => {
+        if (error) throw error
+        console.log(data)
+        sessionInfo.configurations.shadowsocks.server = newServer.networks.v4[0].ip_address
+      })
+    }).then( () => {
+      return ssh.putfile('/path/to/local/file.json', '/path/to/remote/file.json')
+    }).catch(error =>{
+      console.error('there is a problem', error)
+    })
 }
-
 getSessionInfo().then(getCurrentServer).then(startNewServer).then(checkConnection)
 
 
@@ -288,12 +291,40 @@ function updateDomainRecords(domain) {
 
 */
 
-ssh.connect({
-    //host: sessionInfo.new_server.networks.v4[0].ip_address,
-    host: 'localhost',
-    username: 'root',
-    privateKey: process.env.HOME + '/.ssh/do.priv'
-  }).then(() => {
-    return ssh.requestSFTP(() =>
-  this.createWriteStream('/etc/shadowsocks-libev/config.json'))
-  })
+
+var sessionInfo = {
+  do_api_token: null,
+  ssh_key_location: null,
+  configurations: {
+    shadowsocks: {
+      ssRemote: '/etc/shadowsocks-libev/config.json',
+      ssLocal: process.env.HOME + '/config.json.transfered'
+    }
+  }
+}
+function getShadowsocks() {
+
+  return ssh.connect({
+      //host: sessionInfo.new_server.networks.v4[0].ip_address,
+      host: '138.197.193.189',
+      username: 'root',
+      privateKey: process.env.HOME + '/.ssh/do.priv'
+    }).then( () => {
+      return ssh.getFile('/etc/shadowsocks-libev/config.json', process.env.HOME + '/config.json.transfered')
+    }).then( () => {
+      return console.log("The File's contents were successfully downloaded")
+    }).then( () => {
+     return fs.readFile(sessionInfo.configurations.shadowsocks.ssLocal, 'utf-8', (error, data) => {
+        if (error) throw error
+        console.log(data)
+        sessionInfo.configurations.shadowsocks.configFile = JSON.parse(data)
+        sessionInfo.configurations.shadowsocks.configFile.server = '123.456.789.1'
+      })
+    }).then( () => {
+      return fs.writeFile(sessionInfo.configurations.shadowsocks.ssLocal, JSON.stringify(sessionInfo.configurations.shadowsocks.configFile), (error) => {
+        if (error) throw error
+        console.log('It\'s saved!')
+      })
+    }).catch(error =>
+    console.error(error))
+  }

@@ -314,17 +314,48 @@ function getShadowsocks() {
     }).then( () => {
       return console.log("The File's contents were successfully downloaded")
     }).then( () => {
-     return fs.readFile(sessionInfo.configurations.shadowsocks.ssLocal, 'utf-8', (error, data) => {
-        if (error) throw error
-        console.log(data)
-        sessionInfo.configurations.shadowsocks.configFile = JSON.parse(data)
-        sessionInfo.configurations.shadowsocks.configFile.server = '123.456.789.1'
-      })
+      const readFile = fs.readFileSync(sessionInfo.configurations.shadowsocks.ssLocal, 'utf-8')
+      console.log(readFile)
+      sessionInfo.configurations.shadowsocks.configFile = JSON.parse(readFile)
+      sessionInfo.configurations.shadowsocks.configFile.server = '123.456.789.1'
+      return ('resolved')
     }).then( () => {
-      return fs.writeFile(sessionInfo.configurations.shadowsocks.ssLocal, JSON.stringify(sessionInfo.configurations.shadowsocks.configFile), (error) => {
-        if (error) throw error
-        console.log('It\'s saved!')
-      })
+      const writeFile = fs.writeFileSync(sessionInfo.configurations.shadowsocks.ssLocal, JSON.stringify(sessionInfo.configurations.shadowsocks.configFile))
+      return console.log('It\'s saved!')
     }).catch(error =>
     console.error(error))
+  }
+
+
+
+
+
+  function stream() {
+
+  return ssh.connect({
+      //host: sessionInfo.new_server.networks.v4[0].ip_address,
+      host: '138.197.193.189',
+      username: 'root',
+      privateKey: process.env.HOME + '/.ssh/do.priv'
+    }).then(createRead)
+
+   var streamData = ''
+    function createRead() {
+      this.requestSFTP().then( sftp => {
+        const readStream = sftp.createReadStream(sessionInfo.configurations.shadowsocks.ssRemote, { flags: 'r',
+          encoding: 'utf-8',
+          handle: null,
+          mode: 0o666,
+          autoClose: true
+        })
+
+        readStream.on('data', file => {
+          streamData += file;
+        })
+        readStream.on('end', data => {
+          console.log(streamData)
+          return streamData
+        }
+      }
+        )}
   }

@@ -10,7 +10,11 @@ var client;
 var sshKey;
 var ssh = new node_ssh()
 
-var configurations = {};
+var configurations = {
+  shadowsocks: {
+    'config.json': '/etc/shadowsocks-libev/config.json'
+  }
+};
 var prompt = inquirer.createPromptModule();
 var promptQuestions = [
     {
@@ -302,6 +306,104 @@ var sessionInfo = {
     }
   }
 }
+
+
+var sshKey = process.env.HOME + '/.ssh/do.priv'
+var sessionInfo = {
+    do_api_token: '13d1870c93f967c86e711bb4543f0e3c2230d6de15c5012cd3f889164ed8c4a2',
+    ssh_key_location: process.env.HOME + '/.ssh/do.priv',
+    new_server: {
+      networks: {
+        v4: [{
+          ip_address = '123.456.789'
+        }]
+      }
+    },
+    shadowsocks: {
+      'config.json': null,
+    }
+  }
+
+function getShadowsocks(sessionInfo) {
+
+  function readConfig(service, config) {
+    const streamOpts = { 
+      flags: 'r',
+      encoding: 'utf-8',
+      handle: null,
+      mode: 0o666,
+      autoClose: true
+    }
+
+    var streamData = ''
+
+    return ssh.connect({
+      host: sessionInfo.new_server.networks.v4[0].ip_address,
+      username: 'root',
+      privateKey: sshKey
+    }).then(session => {
+      session.requestSFTP().then( sftp => {
+        const readStream = sftp.createReadStream(configurations[service][config], streamOpts)
+        readStream.on('data', file => {
+          streamData += file
+        })
+        readStream.on('end', data => {
+          console.log(streamData)
+          sessionInfo[service][config] = JSON.parse(streamData)
+          sessionInfo[service][config].server = '123.456.789.1'
+        })
+      })
+    }).catch(error =>{
+      console.error(error);
+    })
+  }
+
+    function writeConfig(service, config) {
+    const streamOpts = { 
+      flags: 'w',
+      encoding: 'utf-8',
+      handle: null,
+      mode: 0o666,
+      autoClose: true
+    }
+
+    return ssh.connect({
+      host: sessionInfo.new_server.networks.v4[0].ip_address,
+      username: 'root',
+      privateKey: sshKey
+    }).then(session => {
+      session.requestSFTP().then( sftp => {
+        var configReadable = new readable
+        const writeStream = sftp.createWriteStream(configurations[service][config], streamOpts)
+
+        configReadable.push(JSON.stringify(sessionInfo[service][config], null, 2) + '\n')
+        configReadable.push(null)
+        configReadable.pipe(writeStream)
+        writeStream.on('close',function () {
+            console.log( "- file transferred succesfully" )
+        });
+        writeStream.on('end', function () {
+            console.log( "sftp connection closed" )
+            conn.close()
+        })
+      })
+    }).catch(error =>{
+      console.error(error)
+    })
+  }
+
+  readConfig('shadowsocks', 'config.json').then( () => {
+    return writeConfig('shadowsocks', 'config.json')
+  }).then( () =>{
+    return SessionInfo
+  }).catch(error => {
+    console.error(error)
+  })
+}
+
+
+
+  // update shadowsocks with sync file download/upload
 function getShadowsocks() {
 
   return ssh.connect({
@@ -322,40 +424,7 @@ function getShadowsocks() {
     }).then( () => {
       const writeFile = fs.writeFileSync(sessionInfo.configurations.shadowsocks.ssLocal, JSON.stringify(sessionInfo.configurations.shadowsocks.configFile))
       return console.log('It\'s saved!')
-    }).catch(error =>
-    console.error(error))
-  }
-
-
-
-
-
-  function stream() {
-
-  return ssh.connect({
-      //host: sessionInfo.new_server.networks.v4[0].ip_address,
-      host: '138.197.193.189',
-      username: 'root',
-      privateKey: process.env.HOME + '/.ssh/do.priv'
-    }).then(createRead)
-
-   var streamData = ''
-    function createRead() {
-      this.requestSFTP().then( sftp => {
-        const readStream = sftp.createReadStream(sessionInfo.configurations.shadowsocks.ssRemote, { flags: 'r',
-          encoding: 'utf-8',
-          handle: null,
-          mode: 0o666,
-          autoClose: true
-        })
-
-        readStream.on('data', file => {
-          streamData += file;
-        })
-        readStream.on('end', data => {
-          console.log(streamData)
-          return streamData
-        }
-      }
-        )}
-  }
+    }).catch(error => {
+    console.error(error)
+  })
+}

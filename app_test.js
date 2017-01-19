@@ -25,6 +25,10 @@ var promptQuestions = [
         type: 'input',
         name: 'ssh_key_location',
         message: 'Name of SSH key in ~/.ssh/ to connect to Streisand droplet:'
+    }, {
+        type: 'input',
+        name: 'domain',
+        message: 'domain tied to Streisand:'
     }
 ]
 var sequestOpts = {
@@ -44,10 +48,10 @@ function getSessionInfo() {
     return prompt(promptQuestions).then(answers => {
         sessionInfo.do_api_token = answers.do_api_token
         sessionInfo.ssh_key_location = answers.ssh_key_location
+        sessionInfo.domain = answers.domain
         sshKey = process.env.HOME + '/.ssh/' + sessionInfo.ssh_key_location
-        client = new DigitalOceanApi({token: sessionInfo.do_api_token});
-        console.log(sessionInfo)
-        return sessionInfo;
+        client = new DigitalOceanApi({token: sessionInfo.do_api_token})
+        return sessionInfo
     }).catch(error => console.log(error))
 }
 
@@ -70,92 +74,106 @@ function getCurrentServer(sessionInfo) {
 
 //using the return from getCurrentServer, start a new droplet using the snapshot of the old server.
 function startNewServer(sessionInfo) {
+  var newServerDetails = {
+  "name": "streisand-" + (time.getMonth() + 1) + "-" + time.getDate() +
+    "-" + time.getHours() + "." + time.getMinutes(),
+  "region": "sfo2",
+  //"region": oldServer.oldserver.region.slug,
+  "size": "512mb",
+  "image": sessionInfo.old_server.snapshot_ids[0],
+  "ssh_keys": [1278744]
+  }
   console.log('starting new droplet. . .')
-    var newServerDetails = {
-        "name": "streisand-" + (time.getMonth() + 1) + "-" + time.getDate() +
-          "-" + time.getHours() + "." + time.getMinutes(),
-        "region": "sfo2",
-        //"region": oldServer.oldserver.region.slug,
-        "size": "512mb",
-        "image": sessionInfo.old_server.snapshot_ids[0],
-        "ssh_keys": [1278744]
-    };
 
-    return client.dropletNew(newServerDetails).then(newDroplet => {
-        newServerDetails = newDroplet;
-        var numAttempts = 0;
+  return client.dropletNew(newServerDetails).then(newDroplet => {
+      newServerDetails = newDroplet
+      var numAttempts = 0
 
-        function getIP() {
+      function getIP() {
 
-            return client.dropletGet(newServerDetails.id).then(startingDroplet => {
-                numAttempts++
-                console.log("Find IP attempt # ", numAttempts);
+          return client.dropletGet(newServerDetails.id).then(startingDroplet => {
+              numAttempts++
+              console.log("Find IP attempt # ", numAttempts)
 
-                if (startingDroplet.networks.v4[0].ip_address != undefined) {
-                    newServerDetails = startingDroplet;
-                    console.log("newServer updated with IPv4 address: ",
-                      startingDroplet.networks.v4[0].ip_address);
-                    return newServerDetails;
+              if (startingDroplet.networks.v4[0].ip_address != undefined) {
+                  newServerDetails = startingDroplet;
+                  console.log("newServer updated with IPv4 address: ",
+                    startingDroplet.networks.v4[0].ip_address);
+                  return newServerDetails;
 
-                } else {
-                    if (numAttempts > 15) {
-                        console.log("failed to reach server after " + numAttempts
-                          + " attempts");
-                    } else {
-                        return getIP();
-                    }
-                }
-            }).then(server => {
-                sessionInfo.new_server = server
-                console.log(sessionInfo.new_server.name + " " +
-                  sessionInfo.new_server.networks.v4[0].ip_address)
-                return sessionInfo
-            })
-        }
-        return getIP();
-    }).catch(error => console.log(error))
+              } else {
+                  if (numAttempts > 15) {
+                      console.log("failed to reach server after " + numAttempts
+                        + " attempts");
+                  } else {
+                      return getIP()
+                  }
+              }
+          }).then(server => {
+              sessionInfo.new_server = server
+              console.log(sessionInfo.new_server.name + " " +
+                sessionInfo.new_server.networks.v4[0].ip_address)
+              return sessionInfo
+          })
+      }
+      return getIP()
+  }).catch(error => console.log(error))
 }
 
 function checkConnection(sessionInfo){
-  var attempts = 25
-  console.log('Attempting to connect to server ' + sessionInfo.new_server.name + '. . . ')
-  console.log('Attempt: #1')
-  function connect(attempt) {
+  break
+  const execUptime = function (sessionInfo) {
     return ssh.connect({
-      host: sessionInfo.new_server.networks.v4[0].ip_address,
-      username: 'root',
-      privateKey: sshKey
-    }).then( results => {
-      return ssh.execCommand('uptime')
-    }, rejection => {
-      attempts--
-      return console.error('failed, ' + attempts +  ' attempts left . . .')
-      if (attempts > 0) {
-      return connect(attempts)
-    } else {
-      return console.error('failed to connect to ' + sessionInfo.new_server.name);
-    }
-    }).then(results => {
-      if(results.hasOwnProperty('stdout') || results.hasOwnProperty('stderr') ){
-        if (results.hasOwnProperty('stdout')) {
-          console.log('STDOUT: ' + results.stdout)
-          console.log(sessionInfo.old_server);
-          return sessionInfo
-        } else {
-          console.log('STDERR: ' + results.stderr)
-          console.log(sessionInfo.old_server);
-          return sessionInfo
-        }
-      }
-    }).catch(error => {return console.error(error)})
+    host: sessionInfo.new_server.networks.v4[0].ip_address,
+    username: 'root',
+    privateKey: sshKey
+    }).then(() => ssh.execCommand('uptime'))
   }
-  return connect(attempts)
+
+  function tryConnect(){
+    let attempt = 0
+    
+    function loop() {
+      console.log('Attempting to connect to server ' + sessionInfo.new_server.name + '. . . ')
+      console.log('Attempt: ' + (attempt +1))
+      return execUptime(sessionInfo).then( results => {
+        if(results.hasOwnProperty('stdout') || results.hasOwnProperty('stderr') ){
+          if (results.hasOwnProperty('stdout')) {
+            console.log('STDOUT: ' + results.stdout)
+            return sessionInfo
+          } else if (results.hasOwnProperty('stderr')) {
+            console.log('command failed - STDERR: ' + results.stderr)
+            attempt++
+            if (attempt !==25) {
+          console.log('trying again . . . ');
+          return loop()
+            }
+          }
+        } else {
+          console.log('unknown failure: ' + results)
+        }
+      }).catch(error => {
+        console.log('failed to connect . . . ');
+        attempt++
+        console.error(error)
+        if (attempt !==25) {
+          console.log('trying again . . . ');
+          return loop()
+        }
+        console.log('failed to connect after 25 attempts')
+      })
+    }
+    return loop()
+  }
+  return tryConnect()
 }
 
 function getShadowsocks(sessionInfo) {
   console.log('updating Shadowsocks. . . ')
 
   function readConfig(service, config) {
+    sessionInfo[service] = {}
+    sessionInfo[service][config] = config
     const streamOpts = { 
       flags: 'r',
       encoding: 'utf-8',
@@ -180,7 +198,7 @@ function getShadowsocks(sessionInfo) {
           readStream.on('end', data => {
             console.log(config + ' was successfully downloaded . . . ')
             sessionInfo[service][config] = JSON.parse(streamData)
-            sessionInfo[service][config].server = 'y' + sessionInfo.new_server.networks.v4[0].ip_address
+            sessionInfo[service][config].server = sessionInfo.new_server.networks.v4[0].ip_address
             resolve()
           })
           readStream.on('error', () => reject())
@@ -226,11 +244,12 @@ function getShadowsocks(sessionInfo) {
     })
   }
 
-  readConfig('shadowsocks', 'config.json').then(() => {
+  return readConfig('shadowsocks', 'config.json').then(() => {
     return writeConfig('shadowsocks', 'config.json')
   }).then( () => {
-    return serviceRestart('shadowsocks-libev')
+    return serviceRestart('shadowsocks-libev', sessionInfo)
   }).then( results => {
+    console.log(results)
     return results
     }).catch(error => {
     console.error(error)
@@ -239,7 +258,7 @@ function getShadowsocks(sessionInfo) {
 
 
 //service restart
-function serviceRestart(service) {
+function serviceRestart(service, sessionInfo) {
   console.log('restarting ' + service)
   return ssh.connect({
     host: sessionInfo.new_server.networks.v4[0].ip_address,
@@ -261,107 +280,43 @@ function serviceRestart(service) {
   })
 }
 
-
-getSessionInfo().then(getCurrentServer).then(startNewServer).then(checkConnection).then(getShadowsocks)
-
---------------------------------------------------------------------------------
-//copy Shadowsocks config from old server onto new server
-function getShadowsocks() {
-  return ssh.connect({
-      //host: sessionInfo.new_server.networks.v4[0].ip_address,
-      host: '138.197.193.189',
-      username: 'root',
-      privateKey: process.env.HOME + '/.ssh/do.priv'
-    }).then( () => {
-      return ssh.getFile('/etc/shadowsocks-libev/config.json', process.env.HOME + '/config.json.transfered')
-    }).then( () => {
-      return console.log("The File's contents were successfully downloaded")
-    }).then( () => {
-      fs.readFile('/etc/passwd', (error, data) => {
-        if (error) throw error
-        console.log(data)
-        sessionInfo.configurations.shadowsocks.server = newServer.networks.v4[0].ip_address
-      })
-    }).then( () => {
-      return ssh.putfile('/path/to/local/file.json', '/path/to/remote/file.json')
-    }).catch(error =>{
-      console.error('there is a problem', error)
-    })
+function updateDomainRecords(sessionInfo) {
+  const domain = sessionInfo.domain
+  return client.domainRecordGetAll(domain).then(function(domainRecords) {
+    newRecord = {
+     "type": "A",
+     "data": sessionInfo.new_server.networks.v4[0].ip_address,
+     "name": "@"
+   }
+   var targetRecord = domainRecords.filter(function(el) {
+     return domainRecords
+   })
+   if (targetRecord != null){
+     targetRecord = targetRecord.filter(function(el) {
+       return el.type === "A";
+     })
+     if (targetRecord[0].data === sessionInfo.old_server.networks.v4[0].ip_address) {
+       console.log("the targetRecord and current server record match, updating record.")
+     } else {
+       throw "DNS Records do not match, skipping DNS record update."
+     }
+     return client.domainRecordEdit(domain,targetRecord[0].id,newRecord).then(function (updatedRecord){
+       console.log("The new record is : \n", updatedRecord)
+     })
+   } else {
+     throw "The record details could not be found, skipping DNS record update"
+   }
+ })
 }
 
-  function updateShadowsocks() {
-    console.log("updateShadowsocks callback started.");
-    configurations.shadowsocks.server = newServer.networks.v4[0].ip_address;
-    //this is a real hack that requires success, rework.
-    updateConfig(serviceRestart);
-  };
 
-  function updateConfig(callback) {
-    var configReadable = new readable;
-    var writer = sequest.put('root@' + newServer.networks.v4[0].ip_address,
-    '/etc/shadowsocks-libev/config.json', {
-      mode: '0640',
-      privateKey: sshKey,
-      readyTimeout: 20000
-    });
-
-    configReadable.push(JSON.stringify(configurations.shadowsocks, null, 2) + '\n');
-    configReadable.push(null);
-    configReadable.pipe(writer);
-    writer.on('close', function () {
-      console.log("finished writing");
-      callback('shadowsocks-libev');
-    })
-  };
-  streamToString(oldConfigSSH, configurations, 'shadowsocks', updateShadowsocks);
-};
-
-
-//helper function to push stream into a string variable
- function streamToString (stream, result, resultKey, callback) {
-   var data = '';
-   var chunk;
-
-   stream.on('readable', function() {
-       while ((chunk=this.read()) != null) {
-           data += chunk;
-           console.log("Reading data . . .");
-       }
-   });
-
-   stream.on('end', function() {
-     data = JSON.parse(data);
-     console.log("reading complete");
-     result[resultKey] = data;
-     callback();
-   });
- };
-
- //genereic sequest callback
- function sequestResponse (error, stdout) {
-    if (error) {
-      throw error;
-    } else {
-      console.log(stdout);
-      return true;
-    }
-  };
-
-  function sshCommand (server, options) {
-    sequest('root@' + server, sequestOpts, sequestResponse);
-  };
-
+getSessionInfo().then(results => getCurrentServer(results)).then(results => startNewServer(results)).then(results => checkConnection(results)).then(results => getShadowsocks(results)).then(results => updateDomainRecords(results)).then(results => console.log(results + ' Done'))
 
 --------------------------------------------------------------------------------
 
 //CODE YET TO BE CONVERTED AND IMPLEMENTED
 /*
 
-//service restart
-function serviceRestart(service) {
-  sequestOpts.command = 'service ' + service + ' restart';
-  sshCommand(newServer.networks.v4[0].ip_address, sequestOpts);
-};
 
 //update domain to reflect new IP.
 function updateDomainRecords(domain) {
@@ -415,18 +370,6 @@ function updateDomainRecords(domain) {
   };
 
 */
-
-
-var sessionInfo = {
-  do_api_token: null,
-  ssh_key_location: null,
-  configurations: {
-    shadowsocks: {
-      ssRemote: '/etc/shadowsocks-libev/config.json',
-      ssLocal: process.env.HOME + '/config.json.transfered'
-    }
-  }
-}
 
 
 var sshKey = process.env.HOME + '/.ssh/do.priv'
@@ -533,108 +476,81 @@ var sessionInfo = {
       'config.json': null,
     }
   }
-
-function getShadowsocks(sessionInfo) {
-
-  function readConfig(service, config) {
-    const streamOpts = { 
-      flags: 'r',
-      encoding: 'utf-8',
-      handle: null,
-      mode: 0o666,
-      autoClose: true
-    }
-
-    var streamData = ''
-
-    return ssh.connect({
-      host: sessionInfo.old_server.networks.v4[0].ip_address,
-      username: 'root',
-      privateKey: sshKey
-    }).then(session => {
-      session.requestSFTP().then( sftp => {
-        const readStream = sftp.createReadStream(configurations[service][config], streamOpts)
-        readStream.on('data', file => {
-          streamData += file
-        })
-        readStream.on('end', data => {
-          console.log(streamData)
-          sessionInfo[service][config] = JSON.parse(streamData)
-          sessionInfo[service][config].server = '123.456.789.1'
-        })
-      })
-    }).catch(error =>{
-      console.error(error);
-    })
-  }
-
-    function writeConfig(service, config) {
-    const streamOpts = { 
-      flags: 'w',
-      encoding: 'utf-8',
-      handle: null,
-      mode: 0o666,
-      autoClose: true
-    }
-
+//old version
+function checkConnection(sessionInfo){
+  var attempts = 25
+  console.log('Attempting to connect to server ' + sessionInfo.new_server.name + '. . . ')
+  console.log('Attempt: #1')
+  function connect(attempt) {
     return ssh.connect({
       host: sessionInfo.new_server.networks.v4[0].ip_address,
       username: 'root',
       privateKey: sshKey
-    }).then(session => {
-      session.requestSFTP().then( sftp => {
-        var configReadable = new readable
-        const writeStream = sftp.createWriteStream(configurations[service][config], streamOpts)
+    }).then( results => {
+      return ssh.execCommand('uptime')
+    }, rejection => {
+      attempts--
+      return console.error('failed, ' + attempts +  ' attempts left . . .')
+      if (attempts > 0) {
+      return connect(attempts)
+    } else {
+      return console.error('failed to connect to ' + sessionInfo.new_server.name);
+    }
+    }).then(results => {
+      if(results.hasOwnProperty('stdout') || results.hasOwnProperty('stderr') ){
+        if (results.hasOwnProperty('stdout')) {
+          console.log('STDOUT: ' + results.stdout)
+          console.log(sessionInfo.old_server);
+          return sessionInfo
+        } else {
+          console.log('STDERR: ' + results.stderr)
+          console.log(sessionInfo.old_server);
+          return sessionInfo
+        }
+      }
+    }).catch(error => {return console.error(error)})
+  }
+  return connect(attempts)
+}
 
-        configReadable.push(JSON.stringify(sessionInfo[service][config], null, 2) + '\n')
-        configReadable.push(null)
-        configReadable.pipe(writeStream)
-        writeStream.on('close',function () {
-            console.log( "- file transferred succesfully" )
-        });
-        writeStream.on('end', function () {
-            console.log( "sftp connection closed" )
-            conn.close()
-        })
-      })
-    }).catch(error =>{
+
+//new version
+function checkConnection(sessionInfo){
+  const execUptime = ssh.connect({
+    host: sessionInfo.new_server.networks.v4[0].ip_address,
+    username: 'root',
+    privateKey: sshKey
+  }).then(() => {
+    return ssh.execCommand('uptime') 
+  })
+
+  function tryConnect(){
+    let attempt = 0
+    
+    console.log('Attempting to connect to server ' + sessionInfo.new_server.name + '. . . ')
+    console.log('Attempt: ' + (attempt +1))
+    
+    return execUptime.then( results => {
+      if(results.hasOwnProperty('stdout') || results.hasOwnProperty('stderr') ){
+        if (results.hasOwnProperty('stdout')) {
+          console.log('STDOUT: ' + results.stdout)
+          return sessionInfo
+        } else {
+          console.log('STDERR: ' + results.stderr)
+          return sessionInfo
+        }
+      }
+    }).catch(error => {
+      console.log('failed to connect . . . ');
+      attempt++
       console.error(error)
+      if (attempt !==25) {
+        return execUptime
+      }
+      console.log('failed to connect after 25 attempts')
     })
   }
-
-  readConfig('shadowsocks', 'config.json').then( () => {
-    return writeConfig('shadowsocks', 'config.json')
-  }).then( () =>{
-    return sessionInfo
-  }).catch(error => {
-    console.error(error)
-  })
+  return tryConnect().catch(error => console.error(errror))
 }
 
 
-
-  // update shadowsocks with sync file download/upload
-function getShadowsocks() {
-
-  return ssh.connect({
-      //host: sessionInfo.new_server.networks.v4[0].ip_address,
-      host: '138.197.193.189',
-      username: 'root',
-      privateKey: process.env.HOME + '/.ssh/do.priv'
-    }).then( () => {
-      return ssh.getFile('/etc/shadowsocks-libev/config.json', process.env.HOME + '/config.json.transfered')
-    }).then( () => {
-      return console.log("The File's contents were successfully downloaded")
-    }).then( () => {
-      const readFile = fs.readFileSync(sessionInfo.configurations.shadowsocks.ssLocal, 'utf-8')
-      console.log(readFile)
-      sessionInfo.configurations.shadowsocks.configFile = JSON.parse(readFile)
-      sessionInfo.configurations.shadowsocks.configFile.server = '123.456.789.1'
-      return ('resolved')
-    }).then( () => {
-      const writeFile = fs.writeFileSync(sessionInfo.configurations.shadowsocks.ssLocal, JSON.stringify(sessionInfo.configurations.shadowsocks.configFile))
-      return console.log('It\'s saved!')
-    }).catch(error => {
-    console.error(error)
-  })
-}

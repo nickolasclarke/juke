@@ -14,7 +14,7 @@ var configurations = {
   shadowsocks: {
     'config.json': '/etc/shadowsocks-libev/config.json'
   }
-};
+}
 const prompt = inquirer.createPromptModule()
 const promptQuestions = [{
   type: 'input',
@@ -38,6 +38,7 @@ function getSessionInfo() {
     ssh_key_location: null
   }
 
+<<<<<<< HEAD
   return prompt(promptQuestions).then(answers => {
     sessionInfo.do_api_token = answers.do_api_token
     sessionInfo.ssh_key_location = answers.ssh_key_location

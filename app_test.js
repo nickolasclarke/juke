@@ -69,8 +69,9 @@ function getCurrentServer(sessionInfo) {
 
 //using the return from getCurrentServer, start a new droplet using the snapshot of the old server.
 function startNewServer(sessionInfo) {
-  const image
+  var image
   if(!sessionInfo.old_server.snapshot_ids[0]){
+    console.log('no snapshot present, using image')
     image = sessionInfo.old_server.image.id
   } else image = sessionInfo.old_server.snapshot_ids[0]
 

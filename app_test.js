@@ -32,7 +32,6 @@ const promptQuestions = [
     }
 ]
 var time = new Date()
-var targetRecord
 
 //gather required info from user
 function getSessionInfo() {

@@ -14,7 +14,7 @@ A Node.js script to reprovision a Streisand Instance to a new IP for GFW circumv
 ## Installation and Use:
 - checkout this repository and cd to dir: `git checkout git@github.com:nickolasclarke/juke.git && cd juke`
 - install node dependencies: `npm install`
-- run with `node app.js`
+- run with `node juke.js`
 
 ##TODO
 - testing suite

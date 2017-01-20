@@ -38,7 +38,6 @@ function getSessionInfo() {
     ssh_key_location: null
   }
 
-<<<<<<< HEAD
   return prompt(promptQuestions).then(answers => {
     sessionInfo.do_api_token = answers.do_api_token
     sessionInfo.ssh_key_location = answers.ssh_key_location
@@ -317,4 +316,7 @@ getSessionInfo()
   .then(results => checkConnection(results))
   .then(results => getShadowsocks(results))
   .then(results => updateDomainRecords(results))
-  .then(results => console.log('redeployment complete: \n' + results.new_server.networks.v4[0].ip_address))
+  .then(results => { 
+    console.log('redeployment complete: \n' + results.new_server.networks.v4[0].ip_address)
+    process.exit()
+   })

@@ -12,11 +12,17 @@ A Node.js script to reprovision a Streisand Instance to a new IP for GFW circumv
 - NPM, Node installed at `node@>=6.0.0`
 
 ## Installation and Use:
-- checkout this repository and cd to dir: `git checkout git@github.com:nickolasclarke/juke.git && cd juke`
-- install node dependencies: `npm install`
-- run with `node juke.js`
+- Checkout this repository and cd to dir: `git checkout git@github.com:nickolasclarke/juke.git && cd juke`
+- Install node dependencies: `npm install`
+- Run with `node juke.js`
+- If using an IP in your Shadowsocks client configuration, update it to reflect the new server's IP
 
-##TODO
-- testing suite
-- refactor to use async/await
-- handle network failures gracefully
+## Current Limitations:
+- Currently only reconfigures the Shadowsocks service for use
+- The https:// and tor:// gateways are also unavailble upon redeployment, which contains the client configuration details, mirrors, etc.
+
+## TODO:
+- Testing suite
+- Refactor to use async/await
+- Handle network failures gracefully
+- Add automatic reconfiguration for other services besides Shadowsocks

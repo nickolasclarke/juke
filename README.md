@@ -4,6 +4,7 @@ A Node.js script to reprovision a Streisand Instance to a new IP for GFW circumv
 ## Prerequisites:
 #### Remote:
   - A running [Streisand](https://github.com/jlund/streisand) droplet deployed on Digital Ocean
+    - The initial droplet created by streisand should have a snapshot taken after creation. All new droplets created with Juke first check for a snapshot, and if that is not found then it uses the Droplet's `image_id`.
     - *Droplet name should contain the string `streisand-`. I use the convention `streisand-month-day-hour.minute` i.e. `streisand-01-20-14.46` which is what Juke will use when recreating the droplet.*
   - A Digital Ocean [API token](https://cloud.digitalocean.com/settings/api/tokens) with read/write access
   - *(optional)* A [domain configured](https://cloud.digitalocean.com/networking/domains/) on Digital Ocean with an `A` record pointing at your Streisand droplet's IP

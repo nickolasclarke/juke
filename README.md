@@ -27,3 +27,4 @@ A Node.js script to reprovision a Streisand Instance to a new IP for GFW circumv
 - Refactor to use async/await
 - Handle network failures gracefully
 - Add automatic reconfiguration for other services besides Shadowsocks
+- Make domain optional

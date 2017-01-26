@@ -29,7 +29,11 @@ const promptQuestions = [{
   name: 'domain',
   message: 'domain tied to Streisand:'
 }]
+const ssh = new node_ssh()
 const time = new Date()
+
+let client
+let sshKey
 
 //gather required info from user
 function getSessionInfo() {

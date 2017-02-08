@@ -52,6 +52,7 @@ function getSessionInfo() {
     });
     return sessionInfo;
   }).catch(error => console.log(error));
+  // Check if ssh Key exists on DO, with client.sshKeyGetAll().then(results => results.filter(key => key.name === sessionInfo.ssh_key_location))
 }
 
 // find the latest instance of streisand from Digital Ocean and store it.
@@ -80,8 +81,7 @@ function startNewServer(sessionInfo) {
   let newServerDetails = {
     name: `streisand-${time.getMonth() + 1}-${time.getDate()
       }-${time.getHours()}.${time.getMinutes()}`,
-    region: 'sfo2',
-    // "region": oldServer.oldserver.region.slug,
+    region: 'sessionInfo.old_server.region.slug',
     size: '512mb',
     image,
     ssh_keys: [1278744],

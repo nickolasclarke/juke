@@ -2,9 +2,10 @@
   "name": "juke",
   "version": "0.0.1",
   "description": "A Node.js script to reprovision a Streisand Instance to a new IP",
-  "main": "app.js",
+  "main": "juke.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node juke.js"
   },
   "repository": {
     "type": "git",
@@ -22,7 +23,6 @@
   "dependencies": {
     "doapi": "^0.1.2",
     "inquirer": "^1.2.3",
-    "ping": "^0.2.1",
-    "sequest": "^0.9.0"
+    "node-ssh": "^4.0.1"
   }
 }

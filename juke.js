@@ -46,13 +46,28 @@ function getSessionInfo() {
     sessionInfo.do_api_token = answers.do_api_token;
     sessionInfo.ssh_key_location = answers.ssh_key_location;
     sessionInfo.domain = answers.domain;
-    sshKey = `${process.env.HOME}/.ssh/${sessionInfo.ssh_key_location}`;
+    sshKey = {
+      location: `${process.env.HOME}/.ssh/${sessionInfo.ssh_key_location}`,
+      doID: [],
+    };
+
     client = new DigitalOceanApi({
       token: sessionInfo.do_api_token,
     });
     return sessionInfo;
+  }).then(() => {
+    let keys;
+    return client.sshKeyGetAll().then((results) => {
+      keys = results.filter(result => result.name === sessionInfo.ssh_key_location);
+      if (keys[0].name === sessionInfo.ssh_key_location) {
+        sshKey.doID.push(keys[0].id);
+        console.log('Remote key found');
+        return sessionInfo;
+      }
+      console.error('SSH Key not found on DO, aborting . . .');
+      process.exit(1);
+    });
   }).catch(error => console.log(error));
-  // Check if ssh Key exists on DO, with client.sshKeyGetAll().then(results => results.filter(key => key.name === sessionInfo.ssh_key_location))
 }
 
 // find the latest instance of streisand from Digital Ocean and store it.
@@ -81,10 +96,10 @@ function startNewServer(sessionInfo) {
   let newServerDetails = {
     name: `streisand-${time.getMonth() + 1}-${time.getDate()
       }-${time.getHours()}.${time.getMinutes()}`,
-    region: 'sessionInfo.old_server.region.slug',
+    region: sessionInfo.old_server.region.slug,
     size: '512mb',
     image,
-    ssh_keys: [1278744],
+    ssh_keys: sshKey.doID,
   };
 
   console.log('starting new droplet. . .');
@@ -123,7 +138,7 @@ function checkConnection(sessionInfo) {
   const execUptime = sessionInfo => ssh.connect({
     host: sessionInfo.new_server.networks.v4[0].ip_address,
     username: 'root',
-    privateKey: sshKey,
+    privateKey: sshKey.location,
   }).then(() => ssh.execCommand('uptime'));
 
   function tryConnect() {
@@ -187,7 +202,7 @@ function getShadowsocks(sessionInfo) {
     return ssh.connect({
       host: sessionInfo.old_server.networks.v4[0].ip_address,
       username: 'root',
-      privateKey: sshKey,
+      privateKey: sshKey.location,
     }).then(session => session.requestSFTP().then((sftp) => {
       console.log(`successfully connected, downloading ${config}`);
       const readStream = sftp.createReadStream(configurations[service][config], streamOpts);
@@ -226,7 +241,7 @@ function getShadowsocks(sessionInfo) {
     return ssh.connect({
       host: sessionInfo.new_server.networks.v4[0].ip_address,
       username: 'root',
-      privateKey: sshKey,
+      privateKey: sshKey.location,
     }).then(session => session.requestSFTP().then((sftp) => {
       const configReadable = new Readable();
       const writeStream = sftp.createWriteStream(configurations[service][config], streamOpts);
@@ -262,7 +277,7 @@ function serviceRestart(service, sessionInfo) {
   return ssh.connect({
     host: sessionInfo.new_server.networks.v4[0].ip_address,
     username: 'root',
-    privateKey: sshKey,
+    privateKey: sshKey.location,
   })
   .then(() => ssh.execCommand(`service ${service} restart && service ${service} status`))
   .then((results) => {
